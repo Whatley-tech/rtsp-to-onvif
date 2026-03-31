@@ -434,7 +434,9 @@ module.exports = class OnvifServer {
 
                     this.discoveryMessageNo++;
                     let responseBuffer = Buffer.from(response);
-                    return dgram.createSocket('udp4').send(responseBuffer, 0, responseBuffer.length, remote.port, remote.address);
+                    // return dgram.createSocket('udp4').send(responseBuffer, 0, responseBuffer.length, remote.port, remote.address);
+                    const respSock = dgram.createSocket('udp4');
+                    respSock.send(responseBuffer, 0, responseBuffer.length, remote.port, remote.address, () => respSock.close());
                 }
             });
         });
