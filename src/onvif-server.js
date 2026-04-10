@@ -345,10 +345,32 @@ module.exports = class OnvifServer {
         this.server = http.createServer(this.listen);
         this.server.listen(this.config.ports.server, this.config.hostname);
 
+        const path = require('path');
+        const wsdlRemoteDir = path.resolve('./wsdl/remote');
+
+        // Redirect remote WSDL/XSD imports to local cached copies during
+        // server-side parsing. The raw XML served to clients via ?wsdl
+        // still contains the original remote URLs so they resolve normally.
+        const wsdl_options = {
+            overrideImportLocation: (resolvedPath) => {
+                try {
+                    const parsed = new url.URL(resolvedPath);
+                    let localPath = path.join(wsdlRemoteDir, parsed.hostname, parsed.pathname);
+                    if (!path.extname(localPath)) localPath += '.xsd';
+                    if (fs.existsSync(localPath)) return localPath;
+                } catch (e) {
+                    // not a URL, leave as-is
+                }
+                return resolvedPath;
+            }
+        };
+
         this.deviceService = soap.listen(this.server, {
             path: '/onvif/device_service',
             services: this.onvif,
             xml: fs.readFileSync('./wsdl/device_service.wsdl', 'utf8'),
+            uri: path.resolve('./wsdl/device_service.wsdl'),
+            wsdl_options,
             forceSoap12Headers: true
         });
        
@@ -357,6 +379,8 @@ module.exports = class OnvifServer {
             path: '/onvif/media_service',
             services: this.onvif,
             xml: fs.readFileSync('./wsdl/media_service.wsdl', 'utf8'),
+            uri: path.resolve('./wsdl/media_service.wsdl'),
+            wsdl_options,
             forceSoap12Headers: true
         });
         
