@@ -1,41 +1,63 @@
-BASE="http://10.8.0.74:8096/onvif"
+#!/usr/bin/env bash
+set -euo pipefail
 
-# 1. GetCapabilities
-curl -s -X POST $BASE/device_service \
-  -H 'Content-Type: application/soap+xml; charset=utf-8' \
-  -d '<?xml version="1.0" encoding="UTF-8"?>
+BASE="http://10.8.0.74:8096/onvif"
+CONTENT_TYPE='Content-Type: application/soap+xml; charset=utf-8'
+
+do_request() {
+  local name="$1"
+  local url="$2"
+  local payload="$3"
+
+  echo
+  echo "=== $name ==="
+  echo "URL: $url"
+  echo ""
+
+  curl -sS -X POST "$url" \
+    -H "$CONTENT_TYPE" \
+    -d "$payload"
+  echo
+}
+
+request_get_capabilities() {
+  cat <<'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
 <Envelope xmlns="http://www.w3.org/2003/05/soap-envelope">
   <Body>
     <GetCapabilities xmlns="http://www.onvif.org/ver10/device/wsdl">
       <Category>All</Category>
     </GetCapabilities>
   </Body>
-</Envelope>'
+</Envelope>
+EOF
+}
 
-# 2. GetDeviceInformation
-curl -s -X POST $BASE/device_service \
-  -H 'Content-Type: application/soap+xml; charset=utf-8' \
-  -d '<?xml version="1.0" encoding="UTF-8"?>
+request_get_device_information() {
+  cat <<'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
 <Envelope xmlns="http://www.w3.org/2003/05/soap-envelope">
   <Body>
     <GetDeviceInformation xmlns="http://www.onvif.org/ver10/device/wsdl"/>
   </Body>
-</Envelope>'
+</Envelope>
+EOF
+}
 
-# 3. GetProfiles
-curl -s -X POST $BASE/media_service \
-  -H 'Content-Type: application/soap+xml; charset=utf-8' \
-  -d '<?xml version="1.0" encoding="UTF-8"?>
+request_get_profiles() {
+  cat <<'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
 <Envelope xmlns="http://www.w3.org/2003/05/soap-envelope">
   <Body>
     <GetProfiles xmlns="http://www.onvif.org/ver10/media/wsdl"/>
   </Body>
-</Envelope>'
+</Envelope>
+EOF
+}
 
-# 4. GetStreamUri (main_stream)
-curl -s -X POST $BASE/media_service \
-  -H 'Content-Type: application/soap+xml; charset=utf-8' \
-  -d '<?xml version="1.0" encoding="UTF-8"?>
+request_get_stream_uri() {
+  cat <<'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
 <Envelope xmlns="http://www.w3.org/2003/05/soap-envelope">
   <Body>
     <GetStreamUri xmlns="http://www.onvif.org/ver10/media/wsdl">
@@ -48,16 +70,26 @@ curl -s -X POST $BASE/media_service \
       <ProfileToken>main_stream</ProfileToken>
     </GetStreamUri>
   </Body>
-</Envelope>'
+</Envelope>
+EOF
+}
 
-# 5. GetSnapshotUri
-curl -s -X POST $BASE/media_service \
-  -H 'Content-Type: application/soap+xml; charset=utf-8' \
-  -d '<?xml version="1.0" encoding="UTF-8"?>
+request_get_snapshot_uri() {
+  cat <<'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
 <Envelope xmlns="http://www.w3.org/2003/05/soap-envelope">
   <Body>
     <GetSnapshotUri xmlns="http://www.onvif.org/ver10/media/wsdl">
       <ProfileToken>main_stream</ProfileToken>
     </GetSnapshotUri>
   </Body>
-</Envelope>'
+</Envelope>
+EOF
+}
+
+
+do_request "GetCapabilities" "$BASE/device_service" "$(request_get_capabilities)"
+do_request "GetDeviceInformation" "$BASE/device_service" "$(request_get_device_information)"
+do_request "GetProfiles" "$BASE/media_service" "$(request_get_profiles)"
+do_request "GetStreamUri" "$BASE/media_service" "$(request_get_stream_uri)"
+do_request "GetSnapshotUri" "$BASE/media_service" "$(request_get_snapshot_uri)"
