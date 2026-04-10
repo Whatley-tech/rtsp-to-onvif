@@ -4,6 +4,7 @@ const logger = require('simple-node-logger').createSimpleLogger();
 
 const OnvifServer = require('./src/onvif-server');
 const { readAndCheckConfig } = require('./src/config-tools');
+const { downloadWsdlDeps } = require('./scripts/download-wsdl-deps');
 
 
 const parser = new argparse.ArgumentParser({
@@ -24,40 +25,49 @@ if (args) {
         return -1;
     }
 
-    let config = readAndCheckConfig(logger, args.config)
+    // Download remote WSDL/XSD dependencies once before starting any servers.
+    // On first run this fetches from onvif.org/w3.org/oasis and caches locally.
+    // Subsequent starts skip the download entirely (files already on disk).
+    downloadWsdlDeps().then(() => {
 
-    let proxies = {};
-    for (let onvifConfig of config.onvif) {
+        let config = readAndCheckConfig(logger, args.config)
 
-        let server = new OnvifServer(logger, onvifConfig);
+        let proxies = {};
+        for (let onvifConfig of config.onvif) {
 
-        if (server.getHostname()) {
+            let server = new OnvifServer(logger, onvifConfig);
 
-            logger.info('');
-            server.startHttpServer();
-            server.startDiscovery();
-            if (process.env.DEBUG)
-                server.enableDebugOutput()
+            if (server.getHostname()) {
 
-            if (!proxies[onvifConfig.target.hostname])
-                proxies[onvifConfig.target.hostname] = {}
+                logger.info('');
+                server.startHttpServer();
+                server.startDiscovery();
+                if (process.env.DEBUG)
+                    server.enableDebugOutput()
 
-            if (onvifConfig.ports.rtsp && onvifConfig.target.ports.rtsp)
-                proxies[onvifConfig.target.hostname][onvifConfig.ports.rtsp] = onvifConfig.target.ports.rtsp;
-            if (onvifConfig.ports.snapshot && onvifConfig.target.ports.snapshot)
-                proxies[onvifConfig.target.hostname][onvifConfig.ports.snapshot] = onvifConfig.target.ports.snapshot;
-        } else {
-            logger.error(`Failed to find IP address for MAC address ${onvifConfig.mac}`)
-            return -1;
+                if (!proxies[onvifConfig.target.hostname])
+                    proxies[onvifConfig.target.hostname] = {}
+
+                if (onvifConfig.ports.rtsp && onvifConfig.target.ports.rtsp)
+                    proxies[onvifConfig.target.hostname][onvifConfig.ports.rtsp] = onvifConfig.target.ports.rtsp;
+                if (onvifConfig.ports.snapshot && onvifConfig.target.ports.snapshot)
+                    proxies[onvifConfig.target.hostname][onvifConfig.ports.snapshot] = onvifConfig.target.ports.snapshot;
+            } else {
+                logger.error(`Failed to find IP address for MAC address ${onvifConfig.mac}`)
+                process.exit(1);
+            }
         }
-    }
 
-    for (let destinationAddress in proxies) {
-        for (let sourcePort in proxies[destinationAddress]) {
-            logger.info(`PROXY: ${sourcePort} --> ${destinationAddress}:${proxies[destinationAddress][sourcePort]}`);
-            tcpProxy.createProxy(sourcePort, destinationAddress, proxies[destinationAddress][sourcePort]);
+        for (let destinationAddress in proxies) {
+            for (let sourcePort in proxies[destinationAddress]) {
+                logger.info(`PROXY: ${sourcePort} --> ${destinationAddress}:${proxies[destinationAddress][sourcePort]}`);
+                tcpProxy.createProxy(sourcePort, destinationAddress, proxies[destinationAddress][sourcePort]);
+            }
         }
-    }
 
-    return 0;
+    }).catch(err => {
+        logger.error(`Failed to download WSDL dependencies: ${err.message}`);
+        logger.error('Servers cannot start without WSDL files. Check network connectivity.');
+        process.exit(1);
+    });
 }
