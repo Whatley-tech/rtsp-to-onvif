@@ -458,7 +458,7 @@ module.exports = class OnvifServer {
 
                     this.discoveryMessageNo++;
                     let responseBuffer = Buffer.from(response);
-                    this.logger.debug(response);
+                    // this.logger.debug(response);
                     //old removedgram socket method (caused EADDRINUSE errors when multiple servers running)
                     // return dgram.createSocket('udp4').send(responseBuffer, 0, responseBuffer.length, remote.port, remote.address);
                     // new method to avoid EADDRINUSE - bind to random port for each response then close immediately after send
