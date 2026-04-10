@@ -458,15 +458,27 @@ module.exports = class OnvifServer {
 
                     this.discoveryMessageNo++;
                     let responseBuffer = Buffer.from(response);
+                    this.logger.debug(response);
+                    //old removedgram socket method (caused EADDRINUSE errors when multiple servers running)
                     // return dgram.createSocket('udp4').send(responseBuffer, 0, responseBuffer.length, remote.port, remote.address);
+                    // new method to avoid EADDRINUSE - bind to random port for each response then close immediately after send
+                    // const respSock = dgram.createSocket('udp4');
+                    // respSock.send(responseBuffer, 0, responseBuffer.length, remote.port, remote.address, () => respSock.close());
+// new method to avoid EADDRINUSE - bind to random port for each response then close immediately after send
                     const respSock = dgram.createSocket('udp4');
-                    respSock.send(responseBuffer, 0, responseBuffer.length, remote.port, remote.address, () => respSock.close());
+                    respSock.bind(0, this.config.hostname, () => {
+                        respSock.send(responseBuffer, 0, responseBuffer.length, remote.port, remote.address, () => respSock.close());
+                    });
                 }
             });
         });
 
-        this.discoverySocket.bind(3702, () => {
-            return this.discoverySocket.addMembership('239.255.255.250', this.config.hostname);
+        // this.discoverySocket.bind(3702, () => {
+        //     return this.discoverySocket.addMembership('239.255.255.250', this.config.hostname);
+        // });
+        
+        this.discoverySocket.bind(3702, this.config.hostname, () => {
+            this.discoverySocket.addMembership('239.255.255.250', this.config.hostname);
         });
     }
 
