@@ -1,3 +1,4 @@
+#!/bin/bash
 BASE="http://10.8.0.74:8096/onvif"
 SOAP_HEADERS='-H "Content-Type: text/xml" -H "SOAPAction: \"\""'
 
