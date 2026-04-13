@@ -477,7 +477,6 @@ module.exports = class OnvifServer {
             return this.discoverySocket.addMembership('239.255.255.250', this.config.hostname);
         });
         
-       
     }
 
     getHostname() {
