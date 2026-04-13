@@ -473,13 +473,11 @@ module.exports = class OnvifServer {
             });
         });
 
-        // this.discoverySocket.bind(3702, () => {
-        //     return this.discoverySocket.addMembership('239.255.255.250', this.config.hostname);
-        // });
-        
-        this.discoverySocket.bind(3702, this.config.hostname, () => {
-            this.discoverySocket.addMembership('239.255.255.250', this.config.hostname);
+        this.discoverySocket.bind(3702, () => {
+            return this.discoverySocket.addMembership('239.255.255.250', this.config.hostname);
         });
+        
+       
     }
 
     getHostname() {
