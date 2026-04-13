@@ -53,6 +53,20 @@ const FALLBACK_SCHEMAS = {
     </xs:simpleContent>
   </xs:complexType>
 </xs:schema>`,
+    'https://www.w3.org/2004/08/xop/include': `<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           xmlns:xop="https://www.w3.org/2004/08/xop/include"
+           targetNamespace="https://www.w3.org/2004/08/xop/include">
+  <xs:element name="Include">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:any namespace="##other" minOccurs="0" maxOccurs="unbounded" processContents="lax"/>
+      </xs:sequence>
+      <xs:attribute name="href" type="xs:anyURI" use="required"/>
+      <xs:anyAttribute namespace="##other" processContents="lax"/>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>`,
     'https://www.w3.org/2003/05/soap-envelope': `<?xml version="1.0" encoding="UTF-8"?>
 <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
            xmlns:tns="http://www.w3.org/2003/05/soap-envelope"
