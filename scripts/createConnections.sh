@@ -25,8 +25,8 @@ if ! ip link show "$BRIDGE" &>/dev/null; then
   # Remove any existing NM connection on the uplink so it doesn't fight us
   NM_UPLINK=$(nmcli -t -f NAME,DEVICE con show --active | grep ":${UPLINK}$" | cut -d: -f1 || true)
   if [ -n "$NM_UPLINK" ]; then
-    echo "  Releasing NM connection '$NM_UPLINK' from $UPLINK"
-    nmcli con down "$NM_UPLINK" 2>/dev/null || true
+    echo "  Deleting NM connection '$NM_UPLINK' from $UPLINK (prevents conflict on reboot)"
+    nmcli con delete "$NM_UPLINK" 2>/dev/null || true
   fi
 
   ip link add name "$BRIDGE" type bridge
@@ -34,12 +34,16 @@ if ! ip link show "$BRIDGE" &>/dev/null; then
   ip link set "$UPLINK" master "$BRIDGE"
   ip link set "$UPLINK" up
 
+  # Disable IGMP snooping so WS-Discovery multicast floods to all bridge ports
+  echo 0 > /sys/devices/virtual/net/${BRIDGE}/bridge/multicast_snooping
+  echo "  Disabled IGMP snooping on $BRIDGE"
+
   # Pin br0's MAC to the uplink NIC so it never floats to a cam-*-sw interface
   UPLINK_MAC=$(ip link show "$UPLINK" | awk '/link\/ether/{print $2}')
   ip link set "$BRIDGE" address "$UPLINK_MAC"
   echo "  Pinned $BRIDGE MAC to $UPLINK_MAC"
 
-  # Get a DHCP lease for the bridge itself
+  # Register the bridge with NM (DHCP)
   nmcli con add \
     type bridge \
     ifname "$BRIDGE" \
@@ -47,12 +51,30 @@ if ! ip link show "$BRIDGE" &>/dev/null; then
     ipv4.method auto \
     ipv6.method ignore \
     connection.autoconnect yes
+
+  # Register uplink as NM bridge slave so NM doesn't re-take the interface after
+  # the bridge connection is activated. Without this, NM has no record that $UPLINK
+  # belongs to $BRIDGE and will fight the manual ip-link enslavement above.
+  nmcli con add \
+    type ethernet \
+    ifname "$UPLINK" \
+    master "$BRIDGE" \
+    connection.id "${BRIDGE}-slave-${UPLINK}" \
+    connection.autoconnect yes
+  echo "  Registered $UPLINK as NM slave of $BRIDGE"
+
+  # Activate bridge first, then explicitly bring up the slave in case NM
+  # didn't auto-activate it (behaviour varies by NM version)
   nmcli con up "${BRIDGE}-bridge"
+  nmcli con up "${BRIDGE}-slave-${UPLINK}"
 
   echo "  $BRIDGE is up."
   echo ""
 else
   echo "Bridge $BRIDGE already exists — skipping creation."
+  # Ensure IGMP snooping is disabled (may have been re-enabled after reboot)
+  echo 0 > /sys/devices/virtual/net/${BRIDGE}/bridge/multicast_snooping
+  echo "  Disabled IGMP snooping on $BRIDGE"
   # Pin br0's MAC to its uplink NIC to prevent it floating to a cam-*-sw interface
   UPLINK=$(bridge link show | awk '/master br0/{print $2}' | sed 's/://' | grep -v '^cam-' | head -1 || true)
   if [ -n "$UPLINK" ]; then
@@ -178,6 +200,9 @@ if ! ip -4 addr show "$BRIDGE" | grep -q 'inet '; then
     echo "onvif-bridge: ERROR — $BRIDGE has no IPv4 after 60 seconds. Aborting."
     exit 1
 fi
+
+# Disable IGMP snooping so WS-Discovery multicast floods to all bridge ports
+echo 0 > /sys/devices/virtual/net/${BRIDGE}/bridge/multicast_snooping
 
 # Pin br0 MAC to the physical uplink so it doesn't float to a cam-*-sw interface
 UPLINK=$(bridge link show | awk '/master '"$BRIDGE"'/{print $2}' | sed 's/://' | grep -v '^cam-' | head -1 || true)
